@@ -1,4 +1,4 @@
-# esp-app-template
+# esp-kitchen-light
 
 TODO description.
 
