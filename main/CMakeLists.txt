@@ -6,11 +6,10 @@ idf_component_register(
         REQUIRES
         freertos
         nvs_flash
-        rmaker_common
+        driver
         wifi_provisioning
         double_reset
         status_led
         wifi_reconnect
         app_wifi
-        rainmaker_init
 )

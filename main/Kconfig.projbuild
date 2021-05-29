@@ -1,9 +1,27 @@
-menu "Application config"
-    config APP_DEVICE_NAME
-        string "RainMaker device name"
-        default "Kitchen Light"
+menu "Hardware config"
+    config HW_PWM_PIN
+        int "PWM PIN"
+        default 23
 
-    config APP_DEVICE_TYPE
-        string "RainMaker device type"
-        default "esp.device.lightbulb"
+    config HW_PWM_FREQUENCY
+        int "PWM frequency"
+        default 75000
+        help
+            Must be in limit set by a resolution.
+
+    config HW_PWM_RESOLUTION
+        int "PWM resolution, in bits"
+        default 10
+
+    config HW_SWITCH_PIN
+        int "Manual switch PIN"
+        default 2
+
+    config HW_MOTION_OUTPUT_PIN
+        int "RCWL-0516 output PIN"
+        default 17
+
+    config HW_MOTION_CDS_PIN
+        int "RCWL-0516 CDS PIN"
+        default 5
 endmenu
