@@ -9,7 +9,7 @@ menu "Application config"
 
     config APP_PWM_FADE_STEP
         int "Fade step for pwm animation"
-        default 4
+        default 6
 endmenu
 
 menu "Hardware config"

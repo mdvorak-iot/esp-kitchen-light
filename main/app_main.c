@@ -178,11 +178,18 @@ _Noreturn void app_main()
         if (current_duty_percent < target_duty_percent)
         {
             current_duty_percent += APP_PWM_FADE_STEP;
+            if (current_duty_percent > DUTY_PERCENT_MAX)
+                current_duty_percent = DUTY_PERCENT_MAX;
+
             set_duty(current_duty_percent);
         }
         if (current_duty_percent > target_duty_percent)
         {
-            current_duty_percent -= APP_PWM_FADE_STEP;
+            if (current_duty_percent > APP_PWM_FADE_STEP)
+                current_duty_percent -= APP_PWM_FADE_STEP;
+            else
+                current_duty_percent = 0;
+
             set_duty(current_duty_percent);
         }
 
