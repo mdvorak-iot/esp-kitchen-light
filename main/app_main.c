@@ -4,21 +4,36 @@
 #include <driver/ledc.h>
 #include <esp_log.h>
 #include <esp_wifi.h>
+#include <freertos/event_groups.h>
 #include <nvs_flash.h>
 #include <string.h>
 #include <wifi_reconnect.h>
 
 static const char TAG[] = "app_main";
 
-#define HW_PWM_PIN CONFIG_HW_PWM_PIN
-#define HW_PWM_FREQUENCY CONFIG_HW_PWM_FREQUENCY
-#define HW_PWM_RESOLUTION CONFIG_HW_PWM_RESOLUTION
+// Config
+#define HW_PWM_PIN (CONFIG_HW_PWM_PIN)
+#define HW_PWM_FREQUENCY (CONFIG_HW_PWM_FREQUENCY)
+#define HW_PWM_RESOLUTION (CONFIG_HW_PWM_RESOLUTION)
 #define HW_PWM_MAX_DUTY ((1u << (HW_PWM_RESOLUTION)) - 1)
-#define HW_SWITCH_PIN CONFIG_HW_SWITCH_PIN
-#define HW_MOTION_OUTPUT_PIN CONFIG_HW_MOTION_OUTPUT_PIN
+#define HW_PWM_FADE_TIME_MS (1500)
+#define HW_SWITCH_PIN (CONFIG_HW_SWITCH_PIN)
+#define HW_MOTION_OUTPUT_PIN (CONFIG_HW_MOTION_OUTPUT_PIN)
+
+#define APP_SWITCH_AUTO_OFF_SEC (3600)
+#define APP_MOTION_AUTO_OFF_SEC (120)
+
+// State
+#define STATE_CHANGED (BIT0)
+
+static EventGroupHandle_t *state_event = NULL;
+static bool power_on = false;
+static int64_t power_auto_off = 0;
 
 // Program
 void hardware_init();
+void switch_handler(__unused void *arg);
+void motion_handler(__unused void *arg);
 
 static void print_qrcode_handler(__unused void *arg, __unused esp_event_base_t event_base,
                                  __unused int32_t event_id, __unused void *event_data)
@@ -45,6 +60,7 @@ void setup()
 
     // System services
     ESP_ERROR_CHECK(esp_event_loop_create_default());
+    state_event = xEventGroupCreate();
 
     // Check double reset
     // NOTE this should be called as soon as possible, ideally right after nvs init
@@ -94,18 +110,36 @@ void hardware_init()
     ESP_ERROR_CHECK(ledc_channel_config(&channelConfig));
 
     // Switch
+    ESP_ERROR_CHECK(gpio_install_isr_service(0));
+
     ESP_ERROR_CHECK(gpio_reset_pin(HW_SWITCH_PIN));
     ESP_ERROR_CHECK(gpio_set_direction(HW_SWITCH_PIN, GPIO_MODE_INPUT));
     ESP_ERROR_CHECK(gpio_set_pull_mode(HW_SWITCH_PIN, GPIO_PULLUP_ONLY));
-    // TODO
+    ESP_ERROR_CHECK(gpio_set_intr_type(HW_SWITCH_PIN, GPIO_INTR_POSEDGE));
+    ESP_ERROR_CHECK(gpio_intr_enable(HW_SWITCH_PIN));
+    ESP_ERROR_CHECK(gpio_isr_handler_add(HW_SWITCH_PIN, switch_handler, NULL));
 
-    // Motion sensor
     ESP_ERROR_CHECK(gpio_reset_pin(HW_MOTION_OUTPUT_PIN));
     ESP_ERROR_CHECK(gpio_set_direction(HW_MOTION_OUTPUT_PIN, GPIO_MODE_INPUT));
     ESP_ERROR_CHECK(gpio_set_pull_mode(HW_MOTION_OUTPUT_PIN, GPIO_PULLDOWN_ONLY));
+    ESP_ERROR_CHECK(gpio_set_intr_type(HW_MOTION_OUTPUT_PIN, GPIO_INTR_ANYEDGE));
+    ESP_ERROR_CHECK(gpio_intr_enable(HW_MOTION_OUTPUT_PIN));
+    ESP_ERROR_CHECK(gpio_isr_handler_add(HW_MOTION_OUTPUT_PIN, motion_handler, NULL));
 }
 
-static double percent = 0.0;
+void switch_handler(__unused void *arg)
+{
+    power_on = !power_on;
+    power_auto_off = esp_timer_get_time() + (int64_t)APP_SWITCH_AUTO_OFF_SEC * 1000000L;
+    xEventGroupSetBitsFromISR(state_event, STATE_CHANGED, NULL);
+}
+
+void motion_handler(__unused void *arg)
+{
+    power_on = gpio_get_level(HW_MOTION_OUTPUT_PIN);
+    power_auto_off = esp_timer_get_time() + (int64_t)APP_MOTION_AUTO_OFF_SEC * 1000000L;
+    xEventGroupSetBitsFromISR(state_event, STATE_CHANGED, NULL);
+}
 
 _Noreturn void app_main()
 {
@@ -116,12 +150,27 @@ _Noreturn void app_main()
 
     for (;;)
     {
-        vTaskDelay(700 / portTICK_PERIOD_MS);
-        uint32_t duty = percent * 10.23;
-        ESP_LOGI(TAG, "duty=%d", duty);
-        ledc_set_duty_and_update(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, duty, 0);
+        int64_t remaining = power_auto_off - esp_timer_get_time();
+        if (!power_on || remaining < 0)
+        {
+            // Turn off
+            power_on = false;
+            // Default wait
+            remaining = APP_MOTION_AUTO_OFF_SEC * 1000000L;
+        }
 
-        percent += 2;
-        if (percent > 100) percent = 0;
+        ESP_LOGI(TAG, "waiting for %lld", remaining);
+        xEventGroupWaitBits(state_event, STATE_CHANGED, pdFALSE, pdFALSE, pdMS_TO_TICKS(remaining));
+
+        // Is motion sensor active? This complements motion_handler intentionally
+        if (gpio_get_level(HW_MOTION_OUTPUT_PIN))
+        {
+            power_on = true;
+        }
+
+        // Set duty (inverted)
+        uint32_t duty = power_on ? 0 : HW_PWM_MAX_DUTY;
+        ESP_LOGI(TAG, "setting duty to %u", duty);
+        ledc_set_fade_time_and_start(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, duty, HW_PWM_FADE_TIME_MS, LEDC_FADE_WAIT_DONE);
     }
 }
