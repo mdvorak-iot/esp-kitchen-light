@@ -155,12 +155,22 @@ void motion_handler(__unused void *arg)
 
 static void set_duty(uint32_t percent)
 {
-    uint32_t duty = percent * HW_PWM_MAX_DUTY / DUTY_PERCENT_MAX;
+    if (percent > 0)
+    {
+        uint32_t duty = percent * HW_PWM_MAX_DUTY / DUTY_PERCENT_MAX;
 #if HW_PWM_INVERTED
-    duty = HW_PWM_MAX_DUTY - duty;
+        duty = HW_PWM_MAX_DUTY - duty;
 #endif
-    ESP_LOGI(TAG, "set duty to %d%% (%u)", percent, duty);
-    ledc_set_duty_and_update(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, duty, 0);
+
+        ESP_LOGI(TAG, "set duty to %d%% (%u)", percent, duty);
+        ledc_set_duty_and_update(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, duty, 0);
+    }
+    else
+    {
+        // TODO verify no start is needed
+        ESP_LOGI(TAG, "set duty to %d%% (off)", percent);
+        ledc_stop(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, HW_PWM_INVERTED);
+    }
 }
 
 _Noreturn void app_main()
