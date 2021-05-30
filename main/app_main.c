@@ -155,7 +155,14 @@ void motion_handler(__unused void *arg)
 
 static void set_duty(uint32_t percent)
 {
-    if (percent > 0)
+    if (percent > DUTY_PERCENT_MAX - APP_PWM_FADE_STEP)
+    {
+        // Full power, no need for PWM
+        // TODO verify no start is needed
+        ESP_LOGI(TAG, "set duty to %d%% (on)", percent);
+        ledc_stop(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, !HW_PWM_INVERTED);
+    }
+    else if (percent > 0)
     {
         uint32_t duty = percent * HW_PWM_MAX_DUTY / DUTY_PERCENT_MAX;
 #if HW_PWM_INVERTED
@@ -167,6 +174,7 @@ static void set_duty(uint32_t percent)
     }
     else
     {
+        // Turn of completely
         // TODO verify no start is needed
         ESP_LOGI(TAG, "set duty to %d%% (off)", percent);
         ledc_stop(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, HW_PWM_INVERTED);
