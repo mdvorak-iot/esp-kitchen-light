@@ -23,14 +23,16 @@ static const char TAG[] = "app_main";
 #define APP_SWITCH_AUTO_OFF_SEC (CONFIG_APP_SWITCH_AUTO_OFF_SEC)
 #define APP_MOTION_AUTO_OFF_SEC (CONFIG_APP_MOTION_AUTO_OFF_SEC)
 
+#define MICRO_TO_MS(micro) ((int64_t)(micro)*1000000L)
+
 // State
 #define STATE_CHANGED (BIT0)
 #define DUTY_PERCENT_MAX (1000)
 
 static EventGroupHandle_t *state_event = NULL;
-static int64_t power_auto_off_time = 0;
+static int64_t power_auto_off_time = MICRO_TO_MS(APP_MOTION_AUTO_OFF_SEC);
 static uint32_t current_duty_percent = 0;
-static uint32_t target_duty_percent = 0;
+static uint32_t target_duty_percent = DUTY_PERCENT_MAX;
 
 // Program
 void hardware_init();
@@ -132,7 +134,7 @@ void hardware_init()
 void switch_handler(__unused void *arg)
 {
     target_duty_percent = target_duty_percent ? 0 : DUTY_PERCENT_MAX;
-    power_auto_off_time = esp_timer_get_time() + (int64_t)APP_SWITCH_AUTO_OFF_SEC * 1000000L;
+    power_auto_off_time = esp_timer_get_time() + MICRO_TO_MS(APP_SWITCH_AUTO_OFF_SEC);
     xEventGroupSetBitsFromISR(state_event, STATE_CHANGED, NULL);
 }
 
@@ -142,7 +144,7 @@ void motion_handler(__unused void *arg)
     {
         target_duty_percent = DUTY_PERCENT_MAX;
     }
-    power_auto_off_time = esp_timer_get_time() + (int64_t)APP_MOTION_AUTO_OFF_SEC * 1000000L;
+    power_auto_off_time = esp_timer_get_time() + MICRO_TO_MS(APP_MOTION_AUTO_OFF_SEC);
     xEventGroupSetBitsFromISR(state_event, STATE_CHANGED, NULL);
 }
 
@@ -153,7 +155,7 @@ static void set_duty(uint32_t percent)
     duty = HW_PWM_MAX_DUTY - duty;
 #endif
     ESP_LOGI(TAG, "set duty to %d%% (%u)", percent, duty);
-    ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, duty);
+    ledc_set_duty_and_update(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, duty, 0);
 }
 
 _Noreturn void app_main()
