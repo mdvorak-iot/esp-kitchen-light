@@ -111,7 +111,11 @@ void hardware_init()
     channelConfig.channel = LEDC_CHANNEL_0;
     channelConfig.gpio_num = HW_PWM_PIN;
     channelConfig.speed_mode = LEDC_HIGH_SPEED_MODE;
+#if HW_PWM_INVERTED
     channelConfig.duty = 0;
+#else
+    channelConfig.duty = HW_PWM_MAX_DUTY;
+#endif
     ESP_ERROR_CHECK(ledc_channel_config(&channelConfig));
 
     // Switch
