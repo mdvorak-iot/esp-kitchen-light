@@ -173,9 +173,16 @@ _Noreturn void app_main()
     for (;;)
     {
         // Auto-off
-        if (target_duty_percent && (esp_timer_get_time() - power_auto_off_time) > 0)
+        if (target_duty_percent && (power_auto_off_time - esp_timer_get_time()) < 1000L)
         {
-            target_duty_percent = 0;
+            if (gpio_get_level(HW_MOTION_OUTPUT_PIN))
+            {
+                power_auto_off_time = esp_timer_get_time() + SEC_TO_MICRO(APP_MOTION_AUTO_OFF_SEC);
+            }
+            else
+            {
+                target_duty_percent = 0;
+            }
         }
 
         // Set duty cycle
