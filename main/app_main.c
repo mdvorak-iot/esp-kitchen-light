@@ -22,6 +22,7 @@ static const char TAG[] = "app_main";
 
 #define APP_SWITCH_AUTO_OFF_SEC (CONFIG_APP_SWITCH_AUTO_OFF_SEC)
 #define APP_MOTION_AUTO_OFF_SEC (CONFIG_APP_MOTION_AUTO_OFF_SEC)
+#define APP_PWM_FADE_STEP (CONFIG_APP_PWM_FADE_STEP)
 
 #define MICRO_TO_MS(micro) ((int64_t)(micro)*1000000L)
 
@@ -176,11 +177,13 @@ _Noreturn void app_main()
         // Set duty cycle
         if (current_duty_percent < target_duty_percent)
         {
-            set_duty(++current_duty_percent);
+            current_duty_percent += APP_PWM_FADE_STEP;
+            set_duty(current_duty_percent);
         }
         if (current_duty_percent > target_duty_percent)
         {
-            set_duty(--current_duty_percent);
+            current_duty_percent -= APP_PWM_FADE_STEP;
+            set_duty(current_duty_percent);
         }
 
         // Wait for a change

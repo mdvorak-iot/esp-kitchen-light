@@ -6,6 +6,10 @@ menu "Application config"
     config APP_MOTION_AUTO_OFF_SEC
         int "Auto power-off for sensor (sec)"
         default 120
+
+    config APP_PWM_FADE_STEP
+        int "Fade step for pwm animation"
+        default 4
 endmenu
 
 menu "Hardware config"
