@@ -160,7 +160,7 @@ _Noreturn void app_main()
         }
 
         ESP_LOGI(TAG, "waiting for %lld", remaining);
-        xEventGroupWaitBits(state_event, STATE_CHANGED, pdFALSE, pdFALSE, pdMS_TO_TICKS(remaining));
+        xEventGroupWaitBits(state_event, STATE_CHANGED, pdTRUE, pdFALSE, pdMS_TO_TICKS(remaining));
 
         // Is motion sensor active? This complements motion_handler intentionally
         if (gpio_get_level(HW_MOTION_OUTPUT_PIN))
@@ -172,5 +172,8 @@ _Noreturn void app_main()
         uint32_t duty = power_on ? 0 : HW_PWM_MAX_DUTY;
         ESP_LOGI(TAG, "setting duty to %u", duty);
         ledc_set_fade_time_and_start(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, duty, HW_PWM_FADE_TIME_MS, LEDC_FADE_WAIT_DONE);
+
+        // Sanity wait
+        vTaskDelay(1);
     }
 }
