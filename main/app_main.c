@@ -16,7 +16,7 @@ static const char TAG[] = "app_main";
 #define HW_PWM_FREQUENCY (CONFIG_HW_PWM_FREQUENCY)
 #define HW_PWM_RESOLUTION (CONFIG_HW_PWM_RESOLUTION)
 #define HW_PWM_MAX_DUTY ((1u << (HW_PWM_RESOLUTION)) - 1)
-#define HW_PWM_FADE_TIME_MS (500)
+#define HW_PWM_INVERTED 1
 #define HW_SWITCH_PIN (CONFIG_HW_SWITCH_PIN)
 #define HW_MOTION_OUTPUT_PIN (CONFIG_HW_MOTION_OUTPUT_PIN)
 
@@ -25,10 +25,12 @@ static const char TAG[] = "app_main";
 
 // State
 #define STATE_CHANGED (BIT0)
+#define DUTY_PERCENT_MAX 1000
 
 static EventGroupHandle_t *state_event = NULL;
-static bool power_on = false;
-static int64_t power_auto_off = 0;
+static int64_t power_auto_off_time = 0;
+static uint32_t current_duty_percent = 0;
+static uint32_t target_duty_percent = 0;
 
 // Program
 void hardware_init();
@@ -129,8 +131,8 @@ void hardware_init()
 
 void switch_handler(__unused void *arg)
 {
-    power_on = !power_on;
-    power_auto_off = esp_timer_get_time() + (int64_t)APP_SWITCH_AUTO_OFF_SEC * 1000000L;
+    target_duty_percent = target_duty_percent ? 0 : DUTY_PERCENT_MAX;
+    power_auto_off_time = esp_timer_get_time() + (int64_t)APP_SWITCH_AUTO_OFF_SEC * 1000000L;
     xEventGroupSetBitsFromISR(state_event, STATE_CHANGED, NULL);
 }
 
@@ -138,13 +140,20 @@ void motion_handler(__unused void *arg)
 {
     if (gpio_get_level(HW_MOTION_OUTPUT_PIN))
     {
-        power_on = true;
+        target_duty_percent = DUTY_PERCENT_MAX;
     }
-    else
-    {
-        power_auto_off = esp_timer_get_time() + (int64_t)APP_MOTION_AUTO_OFF_SEC * 1000000L;
-    }
+    power_auto_off_time = esp_timer_get_time() + (int64_t)APP_MOTION_AUTO_OFF_SEC * 1000000L;
     xEventGroupSetBitsFromISR(state_event, STATE_CHANGED, NULL);
+}
+
+static void set_duty(uint32_t percent)
+{
+    uint32_t duty = percent * HW_PWM_MAX_DUTY / DUTY_PERCENT_MAX;
+#if HW_PWM_INVERTED
+    duty = HW_PWM_MAX_DUTY - duty;
+#endif
+    ESP_LOGI(TAG, "set duty to %d%% (%u)", percent, duty);
+    ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, duty);
 }
 
 _Noreturn void app_main()
@@ -156,28 +165,29 @@ _Noreturn void app_main()
 
     for (;;)
     {
-        int64_t remaining = power_auto_off - esp_timer_get_time();
-        if (!power_on || remaining < 0)
+        // Auto-off
+        if (target_duty_percent && (esp_timer_get_time() - power_auto_off_time) > 0)
         {
-            // Turn off
-            power_on = false;
-            // Default wait
-            remaining = APP_MOTION_AUTO_OFF_SEC * 1000000L;
+            target_duty_percent = 0;
         }
 
-        ESP_LOGI(TAG, "waiting for %lld", remaining);
-        xEventGroupWaitBits(state_event, STATE_CHANGED, pdTRUE, pdFALSE, pdMS_TO_TICKS(remaining));
-
-        // Is motion sensor active? This complements motion_handler intentionally
-        if (gpio_get_level(HW_MOTION_OUTPUT_PIN))
+        // Set duty cycle
+        if (current_duty_percent < target_duty_percent)
         {
-            power_on = true;
+            set_duty(++current_duty_percent);
+        }
+        if (current_duty_percent > target_duty_percent)
+        {
+            set_duty(--current_duty_percent);
         }
 
-        // Set duty (inverted)
-        uint32_t duty = power_on ? 0 : HW_PWM_MAX_DUTY;
-        ESP_LOGI(TAG, "setting duty to %u", duty);
-        ledc_set_fade_time_and_start(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, duty, HW_PWM_FADE_TIME_MS, LEDC_FADE_WAIT_DONE);
+        // Wait for a change
+        if (current_duty_percent == target_duty_percent)
+        {
+            TickType_t wait_ticks = target_duty_percent ? pdMS_TO_TICKS(power_auto_off_time - esp_timer_get_time()) : portMAX_DELAY;
+            ESP_LOGI(TAG, "waiting for %u ms", pdTICKS_TO_MS(wait_ticks));
+            xEventGroupWaitBits(state_event, STATE_CHANGED, pdTRUE, pdFALSE, wait_ticks);
+        }
 
         // Sanity wait
         vTaskDelay(1);
