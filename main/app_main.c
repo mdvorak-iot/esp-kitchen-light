@@ -24,15 +24,15 @@ static const char TAG[] = "app_main";
 #define APP_MOTION_AUTO_OFF_SEC (CONFIG_APP_MOTION_AUTO_OFF_SEC)
 #define APP_PWM_FADE_STEP (CONFIG_APP_PWM_FADE_STEP)
 
-#define MICRO_TO_MS(micro) ((int64_t)(micro)*1000000L)
+#define SEC_TO_MICRO(sec) ((int64_t)(sec)*1000000L)
 
 // State
 #define STATE_CHANGED (BIT0)
 #define DUTY_PERCENT_MAX (1000)
 
 static EventGroupHandle_t *state_event = NULL;
-static int64_t power_auto_off_time = MICRO_TO_MS(APP_MOTION_AUTO_OFF_SEC);
-static uint32_t current_duty_percent = 0;
+static int64_t power_auto_off_time = SEC_TO_MICRO(APP_MOTION_AUTO_OFF_SEC);
+static uint32_t current_duty_percent = DUTY_PERCENT_MAX;
 static uint32_t target_duty_percent = DUTY_PERCENT_MAX;
 
 // Program
@@ -111,7 +111,7 @@ void hardware_init()
     channelConfig.channel = LEDC_CHANNEL_0;
     channelConfig.gpio_num = HW_PWM_PIN;
     channelConfig.speed_mode = LEDC_HIGH_SPEED_MODE;
-    channelConfig.duty = HW_PWM_MAX_DUTY;
+    channelConfig.duty = current_duty_percent;
     ESP_ERROR_CHECK(ledc_channel_config(&channelConfig));
 
     // Switch
@@ -135,7 +135,7 @@ void hardware_init()
 void switch_handler(__unused void *arg)
 {
     target_duty_percent = target_duty_percent ? 0 : DUTY_PERCENT_MAX;
-    power_auto_off_time = esp_timer_get_time() + MICRO_TO_MS(APP_SWITCH_AUTO_OFF_SEC);
+    power_auto_off_time = esp_timer_get_time() + SEC_TO_MICRO(APP_SWITCH_AUTO_OFF_SEC);
     xEventGroupSetBitsFromISR(state_event, STATE_CHANGED, NULL);
 }
 
@@ -145,7 +145,7 @@ void motion_handler(__unused void *arg)
     {
         target_duty_percent = DUTY_PERCENT_MAX;
     }
-    power_auto_off_time = esp_timer_get_time() + MICRO_TO_MS(APP_MOTION_AUTO_OFF_SEC);
+    power_auto_off_time = esp_timer_get_time() + SEC_TO_MICRO(APP_MOTION_AUTO_OFF_SEC);
     xEventGroupSetBitsFromISR(state_event, STATE_CHANGED, NULL);
 }
 
@@ -196,7 +196,8 @@ _Noreturn void app_main()
         // Wait for a change
         if (current_duty_percent == target_duty_percent)
         {
-            TickType_t wait_ticks = target_duty_percent ? pdMS_TO_TICKS(power_auto_off_time - esp_timer_get_time()) : portMAX_DELAY;
+            int64_t remaining = power_auto_off_time - esp_timer_get_time();
+            TickType_t wait_ticks = target_duty_percent && remaining > 0 ? pdMS_TO_TICKS(remaining / 1000) : portMAX_DELAY;
             ESP_LOGI(TAG, "waiting for %u ms", pdTICKS_TO_MS(wait_ticks));
             xEventGroupWaitBits(state_event, STATE_CHANGED, pdTRUE, pdFALSE, wait_ticks);
         }
