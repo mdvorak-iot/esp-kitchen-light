@@ -16,7 +16,7 @@ static const char TAG[] = "app_main";
 #define HW_PWM_FREQUENCY (CONFIG_HW_PWM_FREQUENCY)
 #define HW_PWM_RESOLUTION (CONFIG_HW_PWM_RESOLUTION)
 #define HW_PWM_MAX_DUTY ((1u << (HW_PWM_RESOLUTION)) - 1)
-#define HW_PWM_FADE_TIME_MS (1500)
+#define HW_PWM_FADE_TIME_MS (500)
 #define HW_SWITCH_PIN (CONFIG_HW_SWITCH_PIN)
 #define HW_MOTION_OUTPUT_PIN (CONFIG_HW_MOTION_OUTPUT_PIN)
 
@@ -136,8 +136,14 @@ void switch_handler(__unused void *arg)
 
 void motion_handler(__unused void *arg)
 {
-    power_on = gpio_get_level(HW_MOTION_OUTPUT_PIN);
-    power_auto_off = esp_timer_get_time() + (int64_t)APP_MOTION_AUTO_OFF_SEC * 1000000L;
+    if (gpio_get_level(HW_MOTION_OUTPUT_PIN))
+    {
+        power_on = true;
+    }
+    else
+    {
+        power_auto_off = esp_timer_get_time() + (int64_t)APP_MOTION_AUTO_OFF_SEC * 1000000L;
+    }
     xEventGroupSetBitsFromISR(state_event, STATE_CHANGED, NULL);
 }
 
