@@ -6,6 +6,7 @@
 #include <esp_wifi.h>
 #include <freertos/event_groups.h>
 #include <nvs_flash.h>
+#include <status_led.h>
 #include <string.h>
 #include <wifi_reconnect.h>
 
@@ -229,6 +230,9 @@ _Noreturn void app_main()
             TickType_t wait_ticks = target_duty_percent && remaining > 0 ? pdMS_TO_TICKS(remaining / 1000) : portMAX_DELAY;
             ESP_LOGI(TAG, "waiting for %u ms", pdTICKS_TO_MS(wait_ticks));
             xEventGroupWaitBits(state_event, STATE_CHANGED, pdTRUE, pdFALSE, wait_ticks);
+
+            // Blink
+            status_led_set_interval_for(STATUS_LED_DEFAULT, 0, true, 200, false);
         }
 
         // Sanity wait
