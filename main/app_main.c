@@ -171,17 +171,18 @@ void IRAM_ATTR switch_handler(__unused void *arg)
 
 void IRAM_ATTR motion_handler(__unused void *arg)
 {
-    // Ignore when disabled
     int64_t now = esp_timer_get_time();
-    if (now - motion_disable_till < 0)
-    {
-        ESP_DRAM_LOGI(TAG, "motion handler disabled, ignoring");
-        return;
-    }
 
     // Toggle
     if (gpio_get_level(HW_MOTION_OUTPUT_PIN))
     {
+        // Don't turn on when disabled
+        if (now - motion_disable_till < 0)
+        {
+            ESP_DRAM_LOGI(TAG, "motion handler disabled, ignoring");
+            return;
+        }
+
         target_duty_percent = DUTY_PERCENT_MAX;
     }
     power_auto_off_time = now + SEC_TO_MICRO(APP_MOTION_AUTO_OFF_SEC);
@@ -193,7 +194,6 @@ static void set_duty(uint32_t percent)
     if (percent > DUTY_PERCENT_MAX - APP_PWM_FADE_STEP)
     {
         // Full power, no need for PWM
-        // TODO verify no start is needed
         ESP_LOGI(TAG, "set duty to %d%% (on)", percent);
         ledc_stop(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, !HW_PWM_INVERTED);
     }
@@ -204,13 +204,12 @@ static void set_duty(uint32_t percent)
         duty = HW_PWM_MAX_DUTY - duty;
 #endif
 
-        ESP_LOGI(TAG, "set duty to %d%% (%u)", percent, duty);
+        ESP_LOGD(TAG, "set duty to %d%% (%u)", percent, duty);
         ledc_set_duty_and_update(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, duty, 0);
     }
     else
     {
         // Turn of completely
-        // TODO verify no start is needed
         ESP_LOGI(TAG, "set duty to %d%% (off)", percent);
         ledc_stop(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, HW_PWM_INVERTED);
     }
