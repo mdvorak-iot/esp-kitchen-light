@@ -162,7 +162,7 @@ void IRAM_ATTR switch_handler(__unused void *arg)
     if (target_duty_percent == 0)
     {
         // Disable motion sensors for a while
-        motion_disable_till = now + MS_TO_MICRO(APP_SWITCH_FORCE_OFF_SEC);
+        motion_disable_till = now + SEC_TO_MICRO(APP_SWITCH_FORCE_OFF_SEC);
         ESP_DRAM_LOGI(TAG, "disabling motion sensor for %d sec", APP_SWITCH_FORCE_OFF_SEC);
     }
 
