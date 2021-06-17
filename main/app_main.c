@@ -22,6 +22,8 @@ static DRAM_ATTR const char TAG[] = "app_main";
 #define HW_MOTION_OUTPUT_PIN (CONFIG_HW_MOTION_OUTPUT_PIN)
 
 #define APP_SWITCH_DEBOUNCE_MS (CONFIG_APP_SWITCH_DEBOUNCE_MS)
+// TODO merge AUTO_OFF to one value
+// TODO add support for long-press of a button, disabling or enabling it for a long time (forced on/off)
 #define APP_SWITCH_FORCE_OFF_SEC (CONFIG_APP_SWITCH_FORCE_OFF_SEC)
 #define APP_SWITCH_AUTO_OFF_SEC (CONFIG_APP_SWITCH_AUTO_OFF_SEC)
 #define APP_MOTION_AUTO_OFF_SEC (CONFIG_APP_MOTION_AUTO_OFF_SEC)
