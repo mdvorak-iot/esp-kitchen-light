@@ -10,7 +10,7 @@
 #include <string.h>
 #include <wifi_reconnect.h>
 
-static const char TAG[] = "app_main";
+static DRAM_ATTR const char TAG[] = "app_main";
 
 // Config
 #define HW_PWM_PIN (CONFIG_HW_PWM_PIN)
@@ -142,7 +142,7 @@ void hardware_init()
     ESP_ERROR_CHECK(gpio_isr_handler_add(HW_MOTION_OUTPUT_PIN, motion_handler, NULL));
 }
 
-void switch_handler(__unused void *arg)
+void IRAM_ATTR switch_handler(__unused void *arg)
 {
     int64_t now = esp_timer_get_time();
 
@@ -169,7 +169,7 @@ void switch_handler(__unused void *arg)
     xEventGroupSetBitsFromISR(state_event, STATE_CHANGED, NULL);
 }
 
-void motion_handler(__unused void *arg)
+void IRAM_ATTR motion_handler(__unused void *arg)
 {
     // Ignore when disabled
     int64_t now = esp_timer_get_time();
