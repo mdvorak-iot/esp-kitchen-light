@@ -149,6 +149,7 @@ void switch_handler(__unused void *arg)
     // Debounce
     if (now - switch_disable_till < 0)
     {
+        ESP_DRAM_LOGI(TAG, "switch disabled, ignoring");
         return;
     }
     switch_disable_till = now + MS_TO_MICRO(APP_SWITCH_DEBOUNCE_MS);
@@ -161,6 +162,7 @@ void switch_handler(__unused void *arg)
     {
         // Disable motion sensors for a while
         motion_disable_till = now + MS_TO_MICRO(APP_SWITCH_FORCE_OFF_SEC);
+        ESP_DRAM_LOGI(TAG, "disabling motion sensor for %d sec", APP_SWITCH_FORCE_OFF_SEC);
     }
 
     // Notify main loop
@@ -173,6 +175,7 @@ void motion_handler(__unused void *arg)
     int64_t now = esp_timer_get_time();
     if (now - motion_disable_till < 0)
     {
+        ESP_DRAM_LOGI(TAG, "motion handler disabled, ignoring");
         return;
     }
 
