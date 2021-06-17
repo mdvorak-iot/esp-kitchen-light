@@ -155,6 +155,7 @@ void IRAM_ATTR switch_handler(__unused void *arg)
     switch_disable_till = now + MS_TO_MICRO(APP_SWITCH_DEBOUNCE_MS);
 
     // Toggle
+    ESP_DRAM_LOGI(TAG, "switch handler");
     target_duty_percent = target_duty_percent ? 0 : DUTY_PERCENT_MAX;
     power_auto_off_time = now + SEC_TO_MICRO(APP_SWITCH_AUTO_OFF_SEC);
 
@@ -183,8 +184,14 @@ void IRAM_ATTR motion_handler(__unused void *arg)
             return;
         }
 
+        ESP_DRAM_LOGI(TAG, "motion handler ON");
         target_duty_percent = DUTY_PERCENT_MAX;
     }
+    else
+    {
+        ESP_DRAM_LOGI(TAG, "motion handler OFF");
+    }
+
     power_auto_off_time = now + SEC_TO_MICRO(APP_MOTION_AUTO_OFF_SEC);
     xEventGroupSetBitsFromISR(state_event, STATE_CHANGED, NULL);
 }
