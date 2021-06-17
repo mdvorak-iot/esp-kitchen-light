@@ -236,6 +236,7 @@ _Noreturn void app_main()
         {
             if (gpio_get_level(HW_MOTION_OUTPUT_PIN))
             {
+                ESP_LOGI(TAG, "motion sensor still ON, prolonging auto-off");
                 power_auto_off_time = esp_timer_get_time() + SEC_TO_MICRO(APP_MOTION_AUTO_OFF_SEC);
             }
             else
