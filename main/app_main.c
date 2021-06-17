@@ -21,11 +21,14 @@ static const char TAG[] = "app_main";
 #define HW_SWITCH_PIN (CONFIG_HW_SWITCH_PIN)
 #define HW_MOTION_OUTPUT_PIN (CONFIG_HW_MOTION_OUTPUT_PIN)
 
+#define APP_SWITCH_DEBOUNCE_MS (CONFIG_APP_SWITCH_DEBOUNCE_MS)
+#define APP_SWITCH_FORCE_OFF_SEC (CONFIG_APP_SWITCH_FORCE_OFF_SEC)
 #define APP_SWITCH_AUTO_OFF_SEC (CONFIG_APP_SWITCH_AUTO_OFF_SEC)
 #define APP_MOTION_AUTO_OFF_SEC (CONFIG_APP_MOTION_AUTO_OFF_SEC)
 #define APP_PWM_FADE_STEP (CONFIG_APP_PWM_FADE_STEP)
 
-#define SEC_TO_MICRO(sec) ((int64_t)(sec)*1000000L)
+#define MS_TO_MICRO(ms_) ((int64_t)(ms_)*1000L)
+#define SEC_TO_MICRO(sec_) ((int64_t)(sec_)*1000000L)
 
 // State
 #define STATE_CHANGED (BIT0)
@@ -35,6 +38,8 @@ static EventGroupHandle_t *state_event = NULL;
 static int64_t power_auto_off_time = SEC_TO_MICRO(APP_MOTION_AUTO_OFF_SEC);
 static uint32_t current_duty_percent = DUTY_PERCENT_MAX;
 static uint32_t target_duty_percent = DUTY_PERCENT_MAX;
+static int64_t switch_disable_till = 0;
+static int64_t motion_disable_till = 0;
 
 // Program
 void hardware_init();
@@ -139,18 +144,44 @@ void hardware_init()
 
 void switch_handler(__unused void *arg)
 {
+    int64_t now = esp_timer_get_time();
+
+    // Debounce
+    if (now - switch_disable_till < 0)
+    {
+        return;
+    }
+    switch_disable_till = now + MS_TO_MICRO(APP_SWITCH_DEBOUNCE_MS);
+
+    // Toggle
     target_duty_percent = target_duty_percent ? 0 : DUTY_PERCENT_MAX;
-    power_auto_off_time = esp_timer_get_time() + SEC_TO_MICRO(APP_SWITCH_AUTO_OFF_SEC);
+    power_auto_off_time = now + SEC_TO_MICRO(APP_SWITCH_AUTO_OFF_SEC);
+
+    if (target_duty_percent == 0)
+    {
+        // Disable motion sensors for a while
+        motion_disable_till = now + MS_TO_MICRO(APP_SWITCH_FORCE_OFF_SEC);
+    }
+
+    // Notify main loop
     xEventGroupSetBitsFromISR(state_event, STATE_CHANGED, NULL);
 }
 
 void motion_handler(__unused void *arg)
 {
+    // Ignore when disabled
+    int64_t now = esp_timer_get_time();
+    if (now - motion_disable_till < 0)
+    {
+        return;
+    }
+
+    // Toggle
     if (gpio_get_level(HW_MOTION_OUTPUT_PIN))
     {
         target_duty_percent = DUTY_PERCENT_MAX;
     }
-    power_auto_off_time = esp_timer_get_time() + SEC_TO_MICRO(APP_MOTION_AUTO_OFF_SEC);
+    power_auto_off_time = now + SEC_TO_MICRO(APP_MOTION_AUTO_OFF_SEC);
     xEventGroupSetBitsFromISR(state_event, STATE_CHANGED, NULL);
 }
 
@@ -235,7 +266,7 @@ _Noreturn void app_main()
             status_led_set_interval_for(STATUS_LED_DEFAULT, 0, true, 200, false);
         }
 
-        // Sanity wait
+        // Throttle (also controls fade speed)
         vTaskDelay(1);
     }
 }

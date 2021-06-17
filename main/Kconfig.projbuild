@@ -10,6 +10,14 @@ menu "Application config"
     config APP_PWM_FADE_STEP
         int "Fade step for pwm animation"
         default 6
+
+    config APP_SWITCH_DEBOUNCE_MS
+        int "Switch debounce interval (ms)"
+        default 200
+
+    config APP_SWITCH_FORCE_OFF_SEC
+        int "Switch force power-off (sec)"
+        default 30
 endmenu
 
 menu "Hardware config"
