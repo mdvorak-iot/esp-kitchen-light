@@ -32,7 +32,7 @@ static DRAM_ATTR const char TAG[] = "app_main";
 
 // State
 #define STATE_CHANGED (BIT0)
-#define DUTY_PERCENT_MAX (1000)
+#define DUTY_PERCENT_MAX (HW_PWM_MAX_DUTY)
 
 static EventGroupHandle_t *state_event = NULL;
 static int64_t power_auto_off_time = SEC_TO_MICRO(APP_MOTION_AUTO_OFF_SEC);
