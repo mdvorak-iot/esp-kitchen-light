@@ -8,6 +8,7 @@
 #include <nvs_flash.h>
 #include <status_led.h>
 #include <string.h>
+#include <switch.h>
 #include <wifi_reconnect.h>
 
 static DRAM_ATTR const char TAG[] = "app_main";
