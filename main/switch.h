@@ -16,10 +16,10 @@ enum switch_event
     SWITCH_EVENT_ACTION,
 };
 
-enum switch_handler_type
+enum switch_long_press_mode
 {
-    SWITCH_HANDLER_ON_PRESS,
-    SWITCH_HANDLER_ON_RELEASE,
+    SWITCH_LONG_PRESS_ON_RELEASE,
+    SWITCH_LONG_PRESS_IMMEDIATELY,
 };
 
 enum switch_mode
@@ -44,10 +44,10 @@ struct switch_data
 struct switch_config
 {
     gpio_num_t pin;
-    uint32_t long_press_ms;
     enum switch_mode mode;
+    uint32_t long_press_ms;
+    enum switch_long_press_mode long_press_mode;
     enum switch_internal_pull internal_pull;
-    enum switch_handler_type handler_type;
     esp_event_loop_handle_t event_loop;
 };
 
