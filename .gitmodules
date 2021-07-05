@@ -10,3 +10,6 @@
 [submodule "app_wifi"]
 	path = components/app_wifi
 	url = https://github.com/mdvorak-iot/esp-app-wifi.git
+[submodule ".\\components\\button"]
+	path = .\\components\\button
+	url = https://github.com/mdvorak-iot/esp-button.git

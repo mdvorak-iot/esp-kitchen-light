@@ -4,7 +4,6 @@ idf_component_register(
         SRCS
         app_main.c
         app_status.c
-        switch.c
         INCLUDE_DIRS .
         REQUIRES
         freertos
@@ -15,4 +14,5 @@ idf_component_register(
         status_led
         wifi_reconnect
         app_wifi
+        button
 )

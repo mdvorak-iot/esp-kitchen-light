@@ -8,10 +8,10 @@
 #include <nvs_flash.h>
 #include <status_led.h>
 #include <string.h>
-#include <switch.h>
 #include <wifi_reconnect.h>
+#include <button.h>
 
-static DRAM_ATTR const char TAG[] = "app_main";
+static const char TAG[] = "app_main";
 
 // Config
 #define HW_PWM_PIN (CONFIG_HW_PWM_PIN)
@@ -22,7 +22,6 @@ static DRAM_ATTR const char TAG[] = "app_main";
 #define HW_SWITCH_PIN (CONFIG_HW_SWITCH_PIN)
 #define HW_MOTION_OUTPUT_PIN (CONFIG_HW_MOTION_OUTPUT_PIN)
 
-#define APP_SWITCH_DEBOUNCE_MS (CONFIG_APP_SWITCH_DEBOUNCE_MS)
 // TODO merge AUTO_OFF to one value
 // TODO add support for long-press of a button, disabling or enabling it for a long time (forced on/off)
 #define APP_SWITCH_FORCE_OFF_SEC (CONFIG_APP_SWITCH_FORCE_OFF_SEC)
@@ -49,6 +48,7 @@ void hardware_init();
 void switch_handler(__unused void *arg);
 void motion_handler(__unused void *arg);
 
+// TODO use from component
 static void print_qrcode_handler(__unused void *arg, __unused esp_event_base_t event_base,
                                  __unused int32_t event_id, __unused void *event_data)
 {
