@@ -1,5 +1,6 @@
 #include "app_status.h"
 #include <app_wifi.h>
+#include <button.h>
 #include <double_reset.h>
 #include <driver/ledc.h>
 #include <esp_log.h>
@@ -9,7 +10,6 @@
 #include <status_led.h>
 #include <string.h>
 #include <wifi_reconnect.h>
-#include <button.h>
 
 static const char TAG[] = "app_main";
 
@@ -40,26 +40,12 @@ static EventGroupHandle_t *state_event = NULL;
 static int64_t power_auto_off_time = SEC_TO_MICRO(APP_MOTION_AUTO_OFF_SEC);
 static uint32_t current_duty_percent = DUTY_PERCENT_MAX;
 static uint32_t target_duty_percent = DUTY_PERCENT_MAX;
-static int64_t switch_disable_till = 0;
 static int64_t motion_disable_till = 0;
 
 // Program
 void hardware_init();
-void switch_handler(__unused void *arg);
-void motion_handler(__unused void *arg);
-
-// TODO use from component
-static void print_qrcode_handler(__unused void *arg, __unused esp_event_base_t event_base,
-                                 __unused int32_t event_id, __unused void *event_data)
-{
-    const char VER[] = "v1";
-    char payload[200] = {};
-    // {"ver":"%s","name":"%s","pop":"%s","transport":"%s"}
-    snprintf(payload, sizeof(payload), "%%7B%%22ver%%22%%3A%%22%s%%22%%2C%%22name%%22%%3A%%22%s%%22%%2C%%22pop%%22%%3A%%22%s%%22%%2C%%22transport%%22%%3A%%22%s%%22%%7D",
-             VER, app_wifi_prov_get_service_name(), app_wifi_get_prov_pop(), APP_WIFI_PROV_TRANSPORT);
-    // NOTE print this regardless of log level settings
-    printf("PROVISIONING: To view QR Code, copy paste the URL in a browser:\n%s?data=%s\n", "https://espressif.github.io/esp-jumpstart/qrcode.html", payload);
-}
+void switch_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
+void motion_handler(void *arg);
 
 void setup()
 {
@@ -91,7 +77,7 @@ void setup()
     ESP_ERROR_CHECK(app_wifi_init(&wifi_cfg));
     ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_MAX_MODEM));
     ESP_ERROR_CHECK(wifi_reconnect_start());
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_PROV_EVENT, WIFI_PROV_START, print_qrcode_handler, NULL, NULL));
+    ESP_ERROR_CHECK(app_wifi_print_qr_code_handler_register(NULL));
 
     // Hardware
     hardware_init();
@@ -130,13 +116,16 @@ void hardware_init()
     // Switch
     ESP_ERROR_CHECK(gpio_install_isr_service(0));
 
-    ESP_ERROR_CHECK(gpio_reset_pin(HW_SWITCH_PIN));
-    ESP_ERROR_CHECK(gpio_set_direction(HW_SWITCH_PIN, GPIO_MODE_INPUT));
-    ESP_ERROR_CHECK(gpio_set_pull_mode(HW_SWITCH_PIN, GPIO_PULLUP_ONLY));
-    ESP_ERROR_CHECK(gpio_set_intr_type(HW_SWITCH_PIN, GPIO_INTR_POSEDGE));
-    ESP_ERROR_CHECK(gpio_intr_enable(HW_SWITCH_PIN));
-    ESP_ERROR_CHECK(gpio_isr_handler_add(HW_SWITCH_PIN, switch_handler, NULL));
+    struct button_config switch_cfg = {
+        .pin = HW_SWITCH_PIN,
+        .level = BUTTON_LEVEL_LOW_ON_PRESS,
+        .internal_pull = true,
+        .long_press_ms = 3000, // TODO Kconfig
+    };
+    ESP_ERROR_CHECK(button_config(&switch_cfg, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(BUTTON_EVENT, BUTTON_EVENT_PRESSED, switch_handler, NULL, NULL));
 
+    // Motion sensor
     ESP_ERROR_CHECK(gpio_reset_pin(HW_MOTION_OUTPUT_PIN));
     ESP_ERROR_CHECK(gpio_set_direction(HW_MOTION_OUTPUT_PIN, GPIO_MODE_INPUT));
     ESP_ERROR_CHECK(gpio_set_pull_mode(HW_MOTION_OUTPUT_PIN, GPIO_PULLDOWN_ONLY));
@@ -145,20 +134,15 @@ void hardware_init()
     ESP_ERROR_CHECK(gpio_isr_handler_add(HW_MOTION_OUTPUT_PIN, motion_handler, NULL));
 }
 
-void IRAM_ATTR switch_handler(__unused void *arg)
+void switch_handler(__unused void *arg, __unused esp_event_base_t event_base,
+                    __unused int32_t event_id, void *event_data)
 {
+    const struct button_data *data = event_data;
     int64_t now = esp_timer_get_time();
 
-    // Debounce
-    if (now - switch_disable_till < 0)
-    {
-        ESP_DRAM_LOGI(TAG, "switch disabled, ignoring");
-        return;
-    }
-    switch_disable_till = now + MS_TO_MICRO(APP_SWITCH_DEBOUNCE_MS);
+    ESP_LOGI(TAG, "switch handler {long=%d}", data->long_press);
 
     // Toggle
-    ESP_DRAM_LOGI(TAG, "switch handler");
     target_duty_percent = target_duty_percent ? 0 : DUTY_PERCENT_MAX;
     power_auto_off_time = now + SEC_TO_MICRO(APP_SWITCH_AUTO_OFF_SEC);
 
@@ -170,7 +154,7 @@ void IRAM_ATTR switch_handler(__unused void *arg)
     }
 
     // Notify main loop
-    xEventGroupSetBitsFromISR(state_event, STATE_CHANGED, NULL);
+    xEventGroupSetBits(state_event, STATE_CHANGED);
 }
 
 void IRAM_ATTR motion_handler(__unused void *arg)
@@ -196,7 +180,10 @@ void IRAM_ATTR motion_handler(__unused void *arg)
     }
 
     power_auto_off_time = now + SEC_TO_MICRO(APP_MOTION_AUTO_OFF_SEC);
-    xEventGroupSetBitsFromISR(state_event, STATE_CHANGED, NULL);
+
+    BaseType_t task_woken = 0;
+    xEventGroupSetBitsFromISR(state_event, STATE_CHANGED, &task_woken);
+    portYIELD_FROM_ISR(task_woken);
 }
 
 static void set_duty(uint32_t percent)
