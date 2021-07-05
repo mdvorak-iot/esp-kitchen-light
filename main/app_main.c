@@ -37,10 +37,10 @@ static const char TAG[] = "app_main";
 #define DUTY_PERCENT_MAX (HW_PWM_MAX_DUTY)
 
 static EventGroupHandle_t *state_event = NULL;
-static int64_t power_auto_off_time = SEC_TO_MICRO(APP_MOTION_AUTO_OFF_SEC);
+static volatile int64_t power_auto_off_time = SEC_TO_MICRO(APP_MOTION_AUTO_OFF_SEC);
 static uint32_t current_duty_percent = DUTY_PERCENT_MAX;
-static uint32_t target_duty_percent = DUTY_PERCENT_MAX;
-static int64_t motion_disable_till = 0;
+static volatile uint32_t target_duty_percent = DUTY_PERCENT_MAX;
+static volatile int64_t motion_disable_till = 0;
 
 // Program
 void hardware_init();
